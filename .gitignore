@@ -1,0 +1,51 @@
+# Node
+node_modules/
+**/node_modules/
+.browserslistrc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+/.pnp
+.pnp.js
+
+# Build outputs
+/build/
+**/build/
+/dist/
+**/dist/
+/.next/
+**/.next/
+coverage/
+
+# Env
+.env
+*.env.local
+*.env.*.local
+
+# Editor/OS
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+*.log
+
+# Python
+backend_python/venv/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Python build / cache
+.eggs/
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Misc
+*.tsbuildinfo
+**/*.tsbuildinfo
