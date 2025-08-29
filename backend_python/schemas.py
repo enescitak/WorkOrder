@@ -27,6 +27,8 @@ class Operation(OperationBase):
     def serialize_datetime(self, dt: datetime) -> str:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
         return dt.isoformat().replace('+00:00', 'Z')
     
     class Config:
@@ -45,6 +47,14 @@ class WorkOrder(WorkOrderBase):
     created_at: datetime
     updated_at: datetime
     operations: List[Operation] = []
+    
+    @field_serializer('created_at', 'updated_at')
+    def serialize_datetime(self, dt: datetime) -> str:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        return dt.isoformat().replace('+00:00', 'Z')
     
     class Config:
         from_attributes = True

@@ -43,8 +43,7 @@ function App() {
     }, 6000);
   };
 
-  // Yardımcılar
-  const formatDT = (d: Date) => format(d, 'dd.MM HH:mm', { locale: tr });
+  const formatDTUTC = (d: Date) => new Intl.DateTimeFormat('tr-TR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
 
   const findOpContext = (operationId: string) => {
     for (const wo of workOrders) {
@@ -56,11 +55,11 @@ function App() {
 
   const roundUpToHour = (d: Date) => {
     const r = new Date(d);
-    if (r.getMinutes() > 0 || r.getSeconds() > 0 || r.getMilliseconds() > 0) {
-      r.setHours(r.getHours() + 1);
-      r.setMinutes(0, 0, 0);
+    if (r.getUTCMinutes() > 0 || r.getUTCSeconds() > 0 || r.getUTCMilliseconds() > 0) {
+      r.setUTCHours(r.getUTCHours() + 1);
+      r.setUTCMinutes(0, 0, 0);
     } else {
-      r.setMinutes(0, 0, 0);
+      r.setUTCMinutes(0, 0, 0);
     }
     return r;
   };
@@ -77,7 +76,7 @@ function App() {
         const prev = ctx.wo.operations.find(o => o.index === ctx.op.index - 1);
         if (prev) {
           const prevEnd = new Date(prev.end);
-          tip += ` Öneri: Başlangıcı en erken ${formatDT(prevEnd)} sonrasına taşıyın.`;
+          tip += ` Öneri: Başlangıcı en erken ${formatDTUTC(prevEnd)} sonrasına taşıyın.`;
         }
       }
       return {
@@ -102,7 +101,7 @@ function App() {
         }
         if (overlaps.length > 0) {
           const latestEnd = overlaps.reduce((acc, cur) => (cur.end > acc ? cur.end : acc), overlaps[0].end);
-          tip += ` Bu makinede dolu aralıklar var. Öneri: En erken ${formatDT(latestEnd)} sonrasına taşıyın veya farklı bir makine seçin.`;
+          tip += ` Bu makinede dolu aralıklar var. Öneri: En erken ${formatDTUTC(latestEnd)} sonrasına taşıyın veya farklı bir makine seçin.`;
         }
       }
       return {
@@ -115,7 +114,7 @@ function App() {
     if (text.includes('r3') || text.includes('past') || text.includes('geçmiş') || text.includes('now') || text.includes('şu an')) {
       let tip = 'Operasyon başlangıcı şimdi saatinden önce olamaz.';
       const now = new Date();
-      const suggest = formatDT(roundUpToHour(now));
+      const suggest = formatDTUTC(roundUpToHour(now));
       tip += ` Öneri: Başlangıcı ${suggest} veya sonrasına taşıyın.`;
       return {
         rule: 'R3',

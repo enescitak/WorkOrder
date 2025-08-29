@@ -9,6 +9,7 @@ from models import WorkOrder, Operation
 from schemas import WorkOrder as WorkOrderSchema, OperationUpdate
 from validation import validate_scheduling_rules
 from config import settings
+from datetime import timezone
 
 app = FastAPI(title="Work Order Timeline API", version="2.0.0")
 app.add_middleware(
@@ -30,14 +31,14 @@ async def root():
 @app.get("/api/workorders", response_model=List[WorkOrderSchema])
 async def get_workorders(db: Session = Depends(get_db)):
     work_orders = db.query(WorkOrder).all()
-    return work_orders
+    return [WorkOrderSchema.model_validate(wo) for wo in work_orders]
 
 @app.get("/api/workorders/{work_order_id}", response_model=WorkOrderSchema)
 async def get_workorder(work_order_id: str, db: Session = Depends(get_db)):
     work_order = db.query(WorkOrder).filter(WorkOrder.id == work_order_id).first()
     if not work_order:
         raise HTTPException(status_code=404, detail="Work order not found")
-    return work_order
+    return WorkOrderSchema.model_validate(work_order)
 
 @app.put("/api/operations/{operation_id}")
 async def update_operation(
@@ -60,6 +61,11 @@ async def update_operation(
         raise HTTPException(status_code=400, detail=validation.error)
     
     for key, value in update_dict.items():
+        if key in ("start", "end"):
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            else:
+                value = value.astimezone(timezone.utc)
         setattr(operation, key, value)
 
     db.flush()

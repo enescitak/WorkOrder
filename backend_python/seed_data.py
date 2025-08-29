@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from database import SessionLocal, create_tables
 from models import WorkOrder, Operation
+
 
 def create_seed_data():
     create_tables()
@@ -12,6 +13,8 @@ def create_seed_data():
         db.query(Operation).delete()
         db.query(WorkOrder).delete()
         db.commit()
+        now_utc = datetime.now(timezone.utc)
+        base = now_utc.replace(minute=0, second=0, microsecond=0)
         
         seed_data = [
             {
@@ -25,8 +28,8 @@ def create_seed_data():
                         "index": 1,
                         "machine_id": "M1",
                         "name": "Cut",
-                        "start": "2025-08-20T09:00:00Z",
-                        "end": "2025-08-20T10:00:00Z"
+                        "start": base + timedelta(hours=1),
+                        "end": base + timedelta(hours=2)
                     },
                     {
                         "id": "OP-2", 
@@ -34,8 +37,8 @@ def create_seed_data():
                         "index": 2,
                         "machine_id": "M2",
                         "name": "Assemble",
-                        "start": "2025-08-20T10:10:00Z", 
-                        "end": "2025-08-20T12:00:00Z"
+                        "start": base + timedelta(hours=2, minutes=10), 
+                        "end": base + timedelta(hours=4)
                     }
                 ]
             },
@@ -50,8 +53,8 @@ def create_seed_data():
                         "index": 1,
                         "machine_id": "M1",
                         "name": "Cut",
-                        "start": "2025-08-20T09:30:00Z",
-                        "end": "2025-08-20T10:30:00Z"
+                        "start": base + timedelta(minutes=30),
+                        "end": base + timedelta(hours=1, minutes=30)
                     },
                     {
                         "id": "OP-4",
@@ -59,8 +62,8 @@ def create_seed_data():
                         "index": 2, 
                         "machine_id": "M2",
                         "name": "Assemble",
-                        "start": "2025-08-20T10:40:00Z",
-                        "end": "2025-08-20T12:15:00Z"
+                        "start": base + timedelta(hours=2, minutes=40),
+                        "end": base + timedelta(hours=5, minutes=15)
                     }
                 ]
             }
@@ -81,8 +84,8 @@ def create_seed_data():
                     index=op_data["index"], 
                     machine_id=op_data["machine_id"],
                     name=op_data["name"],
-                    start=datetime.fromisoformat(op_data["start"].replace('Z', '+00:00')),
-                    end=datetime.fromisoformat(op_data["end"].replace('Z', '+00:00'))
+                    start=op_data["start"],
+                    end=op_data["end"]
                 )
                 db.add(operation)
         

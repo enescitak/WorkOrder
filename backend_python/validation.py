@@ -51,7 +51,7 @@ def validate_scheduling_rules(
     if updated_start < now:
         return ValidationResult(
             False, 
-            f"Operation cannot start in the past. Current time: {now.isoformat()}Z"
+            f"Operation cannot start in the past. Current time: {now.isoformat().replace('+00:00', 'Z')}"
         )
     
     all_ops_in_wo = db.query(Operation).filter(Operation.work_order_id == operation.work_order_id).all()
@@ -91,7 +91,7 @@ def validate_scheduling_rules(
         if current_op['start'] < prev_op['end']:
             return ValidationResult(
                 False,
-                f"Operation {current_op['id']} (index {current_op['index']}) cannot start before operation {prev_op['id']} (index {prev_op['index']}) ends at {prev_op['end'].isoformat()}Z"
+                f"Operation {current_op['id']} (index {current_op['index']}) cannot start before operation {prev_op['id']} (index {prev_op['index']}) ends at {prev_op['end'].isoformat().replace('+00:00', 'Z')}"
             )
     
     all_operations = db.query(Operation).all()
@@ -114,7 +114,7 @@ def validate_scheduling_rules(
         if not (updated_end <= other_start or updated_start >= other_end):
             return ValidationResult(
                 False,
-                f"Operation {operation_id} overlaps with operation {other_op.id} on machine {updated_machine_id}. Other operation: {other_start.isoformat()}Z to {other_end.isoformat()}Z"
+                f"Operation {operation_id} overlaps with operation {other_op.id} on machine {updated_machine_id}. Other operation: {other_start.isoformat().replace('+00:00', 'Z')} to {other_end.isoformat().replace('+00:00', 'Z')}"
             )
     
     return ValidationResult(True)

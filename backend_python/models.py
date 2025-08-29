@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base = declarative_base()
 
@@ -11,8 +11,8 @@ class WorkOrder(Base):
     id = Column(String, primary_key=True)
     product = Column(String, nullable=False)
     qty = Column(Integer, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     operations = relationship("Operation", back_populates="work_order", cascade="all, delete-orphan")
 
@@ -26,7 +26,7 @@ class Operation(Base):
     name = Column(String, nullable=False)
     start = Column(DateTime(timezone=True), nullable=False)
     end = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     work_order = relationship("WorkOrder", back_populates="operations")

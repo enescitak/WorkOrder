@@ -17,6 +17,8 @@ def shift_all_operations_to_today(buffer_minutes: int = 10) -> int:
 
         if min_start.tzinfo is None:
             min_start = min_start.replace(tzinfo=timezone.utc)
+        else:
+            min_start = min_start.astimezone(timezone.utc)
 
         now_utc = datetime.now(timezone.utc)
         target = now_utc + timedelta(minutes=buffer_minutes)
@@ -31,8 +33,12 @@ def shift_all_operations_to_today(buffer_minutes: int = 10) -> int:
             if op.start and op.end:
                 if op.start.tzinfo is None:
                     op.start = op.start.replace(tzinfo=timezone.utc)
+                else:
+                    op.start = op.start.astimezone(timezone.utc)
                 if op.end.tzinfo is None:
                     op.end = op.end.replace(tzinfo=timezone.utc)
+                else:
+                    op.end = op.end.astimezone(timezone.utc)
                 op.start = op.start + offset
                 op.end = op.end + offset
                 updated += 1

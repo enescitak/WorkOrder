@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/core';
 import { WorkOrder, Operation } from '../types';
 import './GanttChart.css';
+const toUtcHHmm = (d: Date) => d.toISOString().slice(11, 16);
 const DraggableOperation: React.FC<{
   operation: Operation;
   workOrderColor: string;
@@ -54,13 +55,14 @@ const DraggableOperation: React.FC<{
           {operation.workOrderId} · {operation.name}
         </span>
         <span className="operation-time">
-          {format(parseISO(operation.start), 'HH:mm', { locale: tr })} - 
-          {format(parseISO(operation.end), 'HH:mm', { locale: tr })}
+          {toUtcHHmm(parseISO(operation.start))} - 
+          {toUtcHHmm(parseISO(operation.end))}
         </span>
       </div>
     </div>
   );
 };
+
 const DroppableTimeCell: React.FC<{
   machine: string;
   timeSlot: Date;
@@ -72,28 +74,39 @@ const DroppableTimeCell: React.FC<{
     <div ref={setNodeRef} className={`time-cell ${isOver ? 'drop-zone-over' : ''}`}></div>
   );
 };
+
 interface GanttChartProps {
   workOrders: WorkOrder[];
   machines: string[];
   onOperationUpdate: (operationId: string, updates: Partial<Operation>) => void;
 }
+
 const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperationUpdate }) => {
   const [draggedOperation, setDraggedOperation] = useState<Operation | null>(null);
   const [highlightedWorkOrderId, setHighlightedWorkOrderId] = useState<string | null>(null);
   const [conflictingOperations, setConflictingOperations] = useState<Set<string>>(new Set());
   const [selectedWorkOrderFilter, setSelectedWorkOrderFilter] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+
   const filteredWorkOrders = useMemo(() => {
     if (!selectedWorkOrderFilter) return workOrders;
     return workOrders.filter(wo => wo.id === selectedWorkOrderFilter);
   }, [workOrders, selectedWorkOrderFilter]);
+
   const timeRange = useMemo(() => {
     const now = new Date();
     const sixHoursBefore = subHours(now, 6);
-    const rangeStart = startOfHour(sixHoursBefore); // grid saat başından başlar
+    const rangeStart = new Date(Date.UTC(
+      sixHoursBefore.getUTCFullYear(),
+      sixHoursBefore.getUTCMonth(),
+      sixHoursBefore.getUTCDate(),
+      sixHoursBefore.getUTCHours(),
+      0, 0, 0
+    ));
     const rangeEnd = addHours(rangeStart, 48);
     return { start: rangeStart, end: rangeEnd };
   }, []);
+
   const timeSlots = useMemo(() => {
     const slots = eachHourOfInterval({
       start: timeRange.start,
@@ -118,18 +131,19 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  // Her saat slotu için sabit piksel genişliği (48 * 84 = 4032px toplam)
+
   const slotWidth = useMemo(() => {
     return 84 * zoomLevel;
   }, [zoomLevel]);
 
-  // Toplam timeline genişliği slot sayısı ile belirlenir
   const timelineWidth = useMemo(() => {
     return slotWidth * timeSlots.length;
   }, [slotWidth, timeSlots.length]);
+
   const gridColumns = useMemo(() => {
     return `repeat(${timeSlots.length}, ${slotWidth}px)`;
   }, [timeSlots.length, slotWidth]);
+
   const gridStyle = useMemo(() => ({
     display: 'grid',
     gridTemplateColumns: gridColumns,
@@ -137,6 +151,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
     ['--slot-width' as any]: `${slotWidth}px`,
     ['--timeline-width' as any]: `${timelineWidth}px`
   }), [gridColumns, timelineWidth, slotWidth]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -150,11 +165,13 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
       },
     })
   );
+
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const operation = findOperationById(active.id as string);
     setDraggedOperation(operation);
   };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setDraggedOperation(null);
@@ -181,6 +198,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
     const newStartTime = new Date(ts);
     const durationMs = parseISO(operation.end).getTime() - parseISO(operation.start).getTime();
     const newEndTime = new Date(newStartTime.getTime() + durationMs);
+
     const sameMachine = operation.machineId === newMachineId;
     const sameStart = parseISO(operation.start).getTime() === newStartTime.getTime();
     const sameEnd = parseISO(operation.end).getTime() === newEndTime.getTime();
@@ -194,6 +212,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
     };
     onOperationUpdate(operationId, updates);
   };
+
   const findOperationById = (operationId: string): Operation | null => {
     for (const wo of workOrders) {
       const operation = wo.operations.find(op => op.id === operationId);
@@ -201,13 +220,16 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
     }
     return null;
   };
+
   const handleOperationClick = (operation: Operation, event: React.MouseEvent) => {
     event.stopPropagation();
     setHighlightedWorkOrderId(operation.workOrderId);
   };
+
   const handleClearHighlight = () => {
     setHighlightedWorkOrderId(null);
   };
+
   const detectConflicts = useMemo(() => {
     const conflicts = new Set<string>();
     const allOperations = workOrders.flatMap(wo => wo.operations);
@@ -228,9 +250,11 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
     }
     return conflicts;
   }, [workOrders]);
+
   useEffect(() => {
     setConflictingOperations(detectConflicts);
   }, [detectConflicts]);
+
   const getOperationPosition = (operation: Operation) => {
     const startTime = parseISO(operation.start);
     const endTime = parseISO(operation.end);
@@ -247,23 +271,27 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
       width: `${widthPx}px`
     };
   };
+
   const getOperationColor = (workOrderId: string) => {
     const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
     const index = workOrders.findIndex(wo => wo.id === workOrderId);
     return colors[index % colors.length];
   };
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [nowTick, setNowTick] = useState(0);
-  const nowLabel = format(new Date(), 'HH:mm', { locale: tr });
+  const nowLabel = `${toUtcHHmm(new Date())} UTC`;
+
   const getNowLeftPx = useCallback(() => {
     const now = new Date();
     const machineColumnWidthPx = 88;
     const hourMs = 60 * 60 * 1000;
     const msFromStart = now.getTime() - timeRange.start.getTime();
-    const hoursFromStart = msFromStart / hourMs; // kesirli saat
+    const hoursFromStart = msFromStart / hourMs;
     const leftPx = machineColumnWidthPx + (hoursFromStart * slotWidth);
     return leftPx;
   }, [timeRange.start, slotWidth]);
+
   useEffect(() => {
     const id = setInterval(() => setNowTick(t => t + 1), 60000);
     const handleResize = () => setNowTick(t => t + 1);
@@ -273,6 +301,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
       window.removeEventListener('resize', handleResize);
     };
   }, []);
+
   useEffect(() => {
     if (containerRef.current && nowTick === 0) {
       const container = containerRef.current;
@@ -282,6 +311,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
       container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
     }
   }, [nowTick, getNowLeftPx]);
+
   return (
     <div className="gantt-chart" onClick={handleClearHighlight}>
       <div className="gantt-header">
@@ -336,8 +366,8 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
               style={gridStyle}
             >
               {timeSlots.map((slot, index) => (
-                <div key={index} className="time-slot" data-hour={slot.getHours()}>
-                  <span className="time-slot-label">{format(slot, 'HH:mm', { locale: tr })}</span>
+                <div key={index} className="time-slot" data-hour={slot.getUTCHours()}>
+                  <span className="time-slot-label">{toUtcHHmm(slot)}</span>
                 </div>
               ))}
             </div>
@@ -381,7 +411,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
             style={{ left: `${getNowLeftPx()}px` }}
             title={`Now ${nowLabel}`}
           >
-            <div className="now-line-label">Now {nowLabel}</div>
+            <div className="now-line-label">Now: {nowLabel} +0</div>
           </div>
         </div>
         <DragOverlay>
@@ -416,4 +446,5 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
     </div>
   );
 };
+
 export default GanttChart;
