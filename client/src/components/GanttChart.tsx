@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { format, startOfDay, eachHourOfInterval, parseISO, differenceInHours, differenceInMinutes } from 'date-fns';
+import { format, startOfHour, eachHourOfInterval, parseISO, addHours, subHours } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { 
   DndContext, 
@@ -8,6 +8,7 @@ import {
   useSensor, 
   useSensors, 
   PointerSensor,
+  TouchSensor,
   DragStartEvent,
   useDraggable,
   useDroppable,
@@ -44,7 +45,7 @@ const DraggableOperation: React.FC<{
       ref={setNodeRef}
       style={style}
       className={`operation-bar ${isDragging ? 'dragging' : ''} ${isHighlighted ? 'highlighted' : ''} ${isConflicting ? 'conflicting' : ''}`}
-      onClick={(e) => onClick(operation, e)}
+      onClick={(e) => { if (isDragging) return; onClick(operation, e); }}
       {...listeners}
       {...attributes}
     >
@@ -81,19 +82,17 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
   const [highlightedWorkOrderId, setHighlightedWorkOrderId] = useState<string | null>(null);
   const [conflictingOperations, setConflictingOperations] = useState<Set<string>>(new Set());
   const [selectedWorkOrderFilter, setSelectedWorkOrderFilter] = useState<string | null>(null);
-  const zoomLevel = 2;
+  const [zoomLevel, setZoomLevel] = useState(1);
   const filteredWorkOrders = useMemo(() => {
     if (!selectedWorkOrderFilter) return workOrders;
     return workOrders.filter(wo => wo.id === selectedWorkOrderFilter);
   }, [workOrders, selectedWorkOrderFilter]);
   const timeRange = useMemo(() => {
     const now = new Date();
-    const todayStart = startOfDay(now);
-    const endTime = new Date(todayStart.getTime() + (48 * 60 * 60 * 1000));
-    return {
-      start: todayStart,
-      end: endTime
-    };
+    const sixHoursBefore = subHours(now, 6);
+    const rangeStart = startOfHour(sixHoursBefore); // grid saat başından başlar
+    const rangeEnd = addHours(rangeStart, 48);
+    return { start: rangeStart, end: rangeEnd };
   }, []);
   const timeSlots = useMemo(() => {
     const slots = eachHourOfInterval({
@@ -102,12 +101,32 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
     });
     return slots.slice(0, -1);
   }, [timeRange]);
-  const timelineWidth = useMemo(() => {
-    return 1920 * zoomLevel;
-  }, [zoomLevel]);
+  
+  useEffect(() => {
+    const computeZoom = (width: number) => {
+      if (width < 640) return 0.6;
+      if (width < 1024) return 0.8;
+      if (width < 1280) return 0.95;
+      if (width < 1536) return 1.05;
+      if (width < 1920) return 1.15;
+      return 1.3;
+    };
+    const handleResize = () => {
+      setZoomLevel(computeZoom(window.innerWidth));
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  // Her saat slotu için sabit piksel genişliği (48 * 84 = 4032px toplam)
   const slotWidth = useMemo(() => {
-    return timelineWidth / timeSlots.length;
-  }, [timelineWidth, timeSlots.length]);
+    return 84 * zoomLevel;
+  }, [zoomLevel]);
+
+  // Toplam timeline genişliği slot sayısı ile belirlenir
+  const timelineWidth = useMemo(() => {
+    return slotWidth * timeSlots.length;
+  }, [slotWidth, timeSlots.length]);
   const gridColumns = useMemo(() => {
     return `repeat(${timeSlots.length}, ${slotWidth}px)`;
   }, [timeSlots.length, slotWidth]);
@@ -115,12 +134,19 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
     display: 'grid',
     gridTemplateColumns: gridColumns,
     width: `${timelineWidth}px`,
-    ['--slot-width' as any]: `${slotWidth}px`
+    ['--slot-width' as any]: `${slotWidth}px`,
+    ['--timeline-width' as any]: `${timelineWidth}px`
   }), [gridColumns, timelineWidth, slotWidth]);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 0,
+        distance: 9,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 8,
       },
     })
   );
@@ -155,6 +181,12 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
     const newStartTime = new Date(ts);
     const durationMs = parseISO(operation.end).getTime() - parseISO(operation.start).getTime();
     const newEndTime = new Date(newStartTime.getTime() + durationMs);
+    const sameMachine = operation.machineId === newMachineId;
+    const sameStart = parseISO(operation.start).getTime() === newStartTime.getTime();
+    const sameEnd = parseISO(operation.end).getTime() === newEndTime.getTime();
+    if (sameMachine && sameStart && sameEnd) {
+      return;
+    }
     const updates = {
       machineId: newMachineId,
       start: newStartTime.toISOString(),
@@ -225,11 +257,11 @@ const GanttChart: React.FC<GanttChartProps> = ({ workOrders, machines, onOperati
   const nowLabel = format(new Date(), 'HH:mm', { locale: tr });
   const getNowLeftPx = useCallback(() => {
     const now = new Date();
-    const hoursFromStart = differenceInHours(now, timeRange.start);
-    const minutesFromHour = differenceInMinutes(now, timeRange.start) % 60;
     const machineColumnWidthPx = 88;
-    const minuteOffsetPx = (minutesFromHour / 60) * slotWidth;
-    const leftPx = machineColumnWidthPx + (hoursFromStart * slotWidth) + minuteOffsetPx;
+    const hourMs = 60 * 60 * 1000;
+    const msFromStart = now.getTime() - timeRange.start.getTime();
+    const hoursFromStart = msFromStart / hourMs; // kesirli saat
+    const leftPx = machineColumnWidthPx + (hoursFromStart * slotWidth);
     return leftPx;
   }, [timeRange.start, slotWidth]);
   useEffect(() => {
